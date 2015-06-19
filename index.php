@@ -6,6 +6,17 @@ require_once __DIR__ . '/settings.php';
 
 ini_set('max_execution_time',0);
 
+function _is_numeric($str) {
+	$is_numeric = true;
+	for($i = 0;$i < strlen($str);$i++) {
+		if(!is_numeric(substr($str,$i,1))) {
+			$is_numeric = false;
+			break;
+		}
+	}
+	return $is_numeric;
+}
+
 $client = new Google_Client();
 $client->setClientId($client_id);
 $client->setClientSecret($client_secret);
@@ -40,7 +51,7 @@ if (isset($_SESSION[$session_key]) && $_SESSION[$session_key]) {
 
 try {
 	if ($client->getAccessToken()) {
-		$optParams = [];
+		$optParams = array();
 		$optParams['maxResults'] = 200;
 		$optParams['labelIds'] = 'SPAM';
 		$t1 = microtime(true);
@@ -52,7 +63,7 @@ try {
 
 		foreach($list as $_list) {
 			$messageId = $_list->getId();
-			$optParamsGet = [];
+			$optParamsGet = array();
 			$optParamsGet['format'] = 'full';
 			$message = $service->users_messages->get('me',$messageId,$optParamsGet);
 
@@ -68,13 +79,24 @@ try {
 					// check if subject ends with reference number
 					$explode = explode(' ',$header->value);
 					$last = $explode[count($explode) - 1];
-					$possible_prefixes = ['#','--','Ref.'];
+					if(_is_numeric($last) && $last > 0 && ($last < (date('Y') - 3) || $tmp > (date('Y') + 5))) {
+						$do_trash = true;
+						break;
+					}
+					$possible_prefixes = array('#','--','Ref.','-','No.');
 					foreach($possible_prefixes as $possible_prefix) {
 						$tmp = substr($last,strlen($possible_prefix));
-						if(is_numeric($tmp) && $tmp > 0 && $tmp < (date('Y') - 3) && $tmp > (date('Y') + 5)) {
+						if(_is_numeric($tmp) && $tmp > 0 && ($tmp < (date('Y') - 3) || $tmp > (date('Y') + 5))) {
 							$do_trash = true;
 							break 2;
 						}
+					}
+					$back_index = 1;
+					for(;$back_index < min(strlen($last),5) && _is_numeric(substr($last,-$back_index));$back_index++) {
+					}
+					if(_is_numeric(substr($last,-$back_index)) && substr($last,-$back_index) > 0 && (substr($last,-$back_index) < (date('Y') - 3) || substr($last,-$back_index) > (date('Y') + 5))) {
+						$do_trash = true;
+						break;
 					}
 				}
 			}
